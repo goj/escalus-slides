@@ -1,0 +1,221 @@
+\documentclass[17pt]{beamer}
+\usetheme{Warsaw}
+
+\title{XMPP testing with Escalus}
+\author{Krzysztof Goj}
+
+\usepackage{minted}
+\newminted{erlang}{gobble=2,fontsize=\small,baselinestretch=1.0}
+
+\begin{document}
+
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{What is Escalus?}
+\begin{center}
+\textbf{Escalus is \alert<1>{a library} \alert<2>{for acceptance testing} \alert<3>{XMPP servers}.}
+
+\vspace{1em}
+
+\begin{footnotesize}
+\only<1>{some code that makes doing certain things \textbf{easier}}
+\only<2>{checking if a thing \textbf{does what it's meant to}}
+\only<3>{XMPP (Jabber) - eXtensible Messaging and Presence Protocol}
+\end{footnotesize}
+\end{center}
+\end{frame}
+
+\begin{frame}{Background}
+\begin{small}
+\begin{itemize}
+\item XMPP is an extensible protocol
+\item Our job is often to extend or adjust ejabberd\\ to fit customer's demand.
+\item Ejabberd is a generic software - optimize by throwing away stuff you don't need.
+\item How to make sure we did the right thing?
+\item How to know if we break something as we go?
+\end{itemize}
+\end{small}
+\end{frame}
+
+\begin{frame}{Before Escalus}
+Boring stuff is boring:
+\begin{itemize}
+\item Use Client's (say, Psi's) XMPP console.
+\item Works good for simple scenarios
+\item PITA with more complicated scenarios:
+    \begin{itemize}
+    \item several users,
+    \item several resources per user,
+    \item setting up \& tearing down the state.
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{after Escalus}
+Automated testing makes life easier:
+\begin{itemize}
+\item Continuous Integration
+\item TDD
+\item Set some tracing and replay the test.
+\item Get Wireshark dump -- write a testcase.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Escalus test case}
+\begin{minted}[fontsize=\footnotesize]{erlang}
+% Alice sends a chat message to Bob's bare JID
+% Bob gets the message on both resources
+% Bob replies to one of Alice's resources
+% Alice receives the reply only on that resource
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Escalus test case}
+\begin{minted}[fontsize=\tiny]{erlang}
+message_routing(Config) ->
+    escalus:story(Config, [2, 2],
+        fun(Alice1, Alice2, Bob1, Bob2) ->
+            % Alice sends a chat message to Bob's bare JID
+            escalus:send(Alice1, escalus_stanza:chat_to(bob, <<"Coffee?">>),
+
+            % Bob gets the message on both resources
+            escalus:assert(is_chat_message, [<<"Coffee?">>],
+                           escalus:wait_for_stanza(Bob1)),
+            escalus:assert(is_chat_message, [<<"Coffee?">>],
+                           escalus:wait_for_stanza(Bob2)),
+
+            % Bob replies to one of Alice's resources
+            escalus:send(Bob1, escalus_stanza:chat_to(Alice1, <<"Sure!">>),
+
+            % Alice receives the reply only on that resource
+            escalus:assert(is_chat_message, [<<"Sure!">>],
+                           escalus:wait_for_stanza(Alice1)),
+            escalus_assert:has_no_stanzas(Alice2)
+        end).
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Think of it as a DSL}
+\begin{minted}[fontsize=\tiny]{erlang}
+message_routing(Config) ->
+    escalus:story(Config, [2, 2], fun(Alice1, Alice2, Bob1, Bob2) ->
+        % Alice sends a chat message to Bob's bare JID
+        escalus:send(Alice1, escalus_stanza:chat_to(bob, <<"Coffee?">>),
+
+        % Bob gets the message on both resources
+        escalus:assert(is_chat_message, [<<"Coffee?">>],
+                       escalus:wait_for_stanza(Bob1)),
+        escalus:assert(is_chat_message, [<<"Coffee?">>],
+                       escalus:wait_for_stanza(Bob2)),
+
+        % Bob replies to one of Alice's resources
+        escalus:send(Bob1, escalus_stanza:chat_to(Alice1, <<"Sure!">>),
+
+        % Alice receives the reply only on that resource
+        escalus:assert(is_chat_message, [<<"Sure!">>],
+                       escalus:wait_for_stanza(Alice1)),
+        escalus_assert:has_no_stanzas(Alice2)
+    end).
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Common Test config file}
+\begin{minted}[fontsize=\footnotesize]{erlang}
+{escalus_users, [
+    {alice, [
+        {username, <<"alice">>},
+        {server, <<"localhost">>},
+        {password, <<"makota">>}]},
+    {bob, [
+        {username, <<"bob">>},
+        {server, <<"localhost">>},
+        {password, <<"mapsa">>}]}]}.
+\end{minted}
+\end{frame}
+
+\begin{frame}{test results}
+\begin{itemize}
+\item \href{https://ci.erlang-solutions.com/job/ejabberd-esl/19/CT_Report/}{bad one}
+\item \href{https://ci.erlang-solutions.com/job/ejabberd-esl/20/CT_Report/}{good one}
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}{What is done for us}
+\begin{itemize}
+\item User registration \& de-registration.
+\item User login \& logout.
+\item XML parsing \& generation.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{What is made easier}
+\begin{itemize}
+\item Checking assertions.
+\item Debugging.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Lesson learned}
+\textbf{The Good:}
+\begin{itemize}
+\item acceptance testing,
+\item ease of writing readable tests,
+\item stories!
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Lessons learned}
+\textbf{The Bad:} race conditions
+\end{frame}
+
+\begin{frame}{Lessons learned}
+\textbf{The Ugly:}
+\begin{itemize}
+\item exmpp,
+\item XML,
+\item Common Test (a little).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Short story of internals rewrite}
+exmpp $\rightarrow$ exml + lxmppc
+\begin{itemize}
+\item internal rewrite
+\item type madness: atoms, strings, binaries
+\item warn \& go
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Future}
+\begin{itemize}
+\item BOSH support
+\item property-based testing
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Summary}
+\begin{itemize}
+\item Think what to test.
+\item Make writing tests easier.
+\item Use Escalus for XMPP-related stuff.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{That's it!}
+\begin{center}
+\vspace{3em}
+
+\textbf{\large Thank you for your attention!}
+
+\vspace{2em}
+
+\small
+\href{mailto:krzysztof.goj@erlang-solutions.com}{krzysztof.goj@erlang-solutions.com}
+\url{https://github.com/goj/escalus}
+\end{center}
+\end{frame}
+\end{document}
