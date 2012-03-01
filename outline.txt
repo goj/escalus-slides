@@ -1,0 +1,115 @@
+# talk outline
+ - Escalus overview
+ - testing in general
+
+# what is Escalus?
+ - Escalus is a library for acceptance testing XMPP servers.
+
+ library - some code that makes doing certain things *easier*
+ acceptance testing - checking if a thing does what it's meant to
+ XMPP (Jabber) - eXtensible Messaging and Presence Protocol
+
+# background
+ - XMPP is an extensible protocol
+ - our job is often to extend or adjust ejabberd to fit customer's demand
+ - ejabberd is a generic software - optimize by throwing away stuff you don't need
+ - how to make sure we did the right thing?
+ - how to know if we break something as we went?
+
+# before Escalus
+ - use Client's (say, Psi's) XMPP console
+ - works good for simple scenarios
+ - PITA with more complicated scenarios
+   - several users
+   - several resources per user
+   - setting up & tearing down the state
+
+# after Escalus
+ - automated testing
+   - continuous integration
+   - TDD
+
+# Escalus test case
+  % Alice sends a chat message to Bob's bare JID
+  % Bob gets the message on both resources
+  % Bob replies to one of Alice's resources
+  % Alice receives the reply only on that resource
+
+# Escalus test case
+message_routing(Config) ->
+    escalus:story(Config, [2, 2],
+        fun(Alice1, Alice2, Bob1, Bob2) ->
+            % Alice sends a chat message to Bob's bare JID
+            escalus:send(Alice1, escalus_stanza:chat_to(bob, <<"Coffee?">>),
+
+            % Bob gets the message on both resources
+            escalus:assert(is_chat_message, [<<"Coffee?">>],
+                           escalus:wait_for_stanza(Bob1)),
+            escalus:assert(is_chat_message, [<<"Coffee?">>],
+                           escalus:wait_for_stanza(Bob2)),
+
+            % Bob replies to one of Alice's resources
+            escalus:send(Bob1, escalus_stanza:chat_to(Alice1, <<"Sure!">>),
+
+            % Alice receives the reply only on that resource
+            escalus:assert(is_chat_message, [<<"Sure!">>],
+                           escalus:wait_for_stanza(Alice1)),
+            escalus_assert:has_no_stanzas(Alice2)
+        end).
+
+
+# I think of it as a DSL
+message_routing(Config) ->
+    escalus:story(Config, [2, 2], fun(Alice1, Alice2, Bob1, Bob2) ->
+        % Alice sends a chat message to Bob's bare JID
+        escalus:send(Alice1, escalus_stanza:chat_to(bob, <<"Coffee?">>),
+
+        % Bob gets the message on both resources
+        escalus:assert(is_chat_message, [<<"Coffee?">>],
+                       escalus:wait_for_stanza(Bob1)),
+        escalus:assert(is_chat_message, [<<"Coffee?">>],
+                       escalus:wait_for_stanza(Bob2)),
+
+        % Bob replies to one of Alice's resources
+        escalus:send(Bob1, escalus_stanza:chat_to(Alice1, <<"Sure!">>),
+
+        % Alice receives the reply only on that resource
+        escalus:assert(is_chat_message, [<<"Sure!">>],
+                       escalus:wait_for_stanza(Alice1)),
+        escalus_assert:has_no_stanzas(Alice2)
+    end).
+
+# what is done for us
+ - user registration & de-registration
+ - user login & logout
+ - XML parsing & generation
+
+# what is made easier
+ - checking assertions
+ - debugging
+
+# lesson learned: the good
+ - acceptance testing
+ - ease of writing readable tests
+ - stories!
+
+# lessons learned: the bad
+ - race conditions
+
+# lessons learned: the ugly
+ - exmpp
+
+# a story of internals rewrite
+ - exml + lxmppc
+
+# future
+ - BOSH support
+ - property-based testing
+
+# summary
+ - think what to test
+ - make writing tests easier
+ - use Escalus for XMPP-related stuff
+
+# thank you for your attention!
+github.com/goj/escalus
